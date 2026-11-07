@@ -1,0 +1,154 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (e.g. 0.1.0)
+        required: true
+        type: string
+      git_ref:
+        description: Git ref to release from
+        required: true
+        default: main
+        type: string
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PACKAGE: secrethub_agent
+
+jobs:
+  release:
+    name: Build and publish GitHub release
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout release ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.git_ref }}
+          fetch-depth: 0
+
+      - name: Setup Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+
+      - name: Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool
+            example/.dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Update package versions
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          perl -0pi -e 's/^version: .+$/version: $ENV{VERSION}/m' pubspec.yaml
+          if [[ "$VERSION" == *+* ]]; then
+            EXAMPLE_VERSION="$VERSION"
+          else
+            EXAMPLE_VERSION="${VERSION}+1"
+          fi
+          export EXAMPLE_VERSION
+          perl -0pi -e 's/^version: .+$/version: $ENV{EXAMPLE_VERSION}/m' example/pubspec.yaml
+
+      - name: Install dependencies
+        run: |
+          flutter pub get
+          (cd example && flutter pub get)
+
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze package
+        run: flutter analyze
+
+      - name: Analyze example
+        working-directory: example
+        run: flutter analyze
+
+      - name: Run unit tests
+        run: |
+          flutter test
+          (cd example && flutter test)
+
+      - name: Validate pub package (dry-run)
+        run: |
+          if ! grep -Eq '^publish_to:\s*none\s*$' pubspec.yaml; then
+            flutter pub publish --dry-run --ignore-warnings
+          else
+            echo "Skipping pub.dev dry-run because publish_to: none is set."
+          fi
+
+      - name: Create source release artifact
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          mkdir -p dist/release
+          git archive --format=tar.gz --prefix="${PACKAGE}-${VERSION}/" -o "dist/release/${PACKAGE}-source-${VERSION}.tar.gz" HEAD
+          (
+            cd dist/release
+            sha256sum * > SHA256SUMS
+          )
+
+      - name: Commit release version bump
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git add pubspec.yaml example/pubspec.yaml
+          if git diff --cached --quiet; then
+            echo "Release files are already current for v${VERSION}."
+          else
+            git commit -m "chore(release): v${VERSION}"
+          fi
+          git push origin "HEAD:${{ inputs.git_ref }}"
+
+      - name: Create GitHub release and tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          release_flags=()
+          if [[ "$VERSION" == *-* ]]; then
+            release_flags+=(--prerelease)
+          fi
+          gh release create "v${VERSION}" dist/release/* "${release_flags[@]}" \
+            --target "$(git rev-parse HEAD)" \
+            --generate-notes \
+            --title "v${VERSION}"
+
+      - name: Dispatch pub.dev publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if grep -Eq '^publish_to:\s*none\s*$' pubspec.yaml; then
+            echo "${PACKAGE} is marked publish_to: none, skipping pub.dev publish."
+            exit 0
+          fi
+          gh workflow run publish.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --ref "v${VERSION}" \
+            -f version="${VERSION}" \
+            -f git_ref="v${VERSION}"
