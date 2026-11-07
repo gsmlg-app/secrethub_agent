@@ -1,6 +1,6 @@
 name: secrethub_agent
 description: SecretHub mobile agent plugin bootstrap for iOS and Android.
-version: 0.1.0
+version: 0.1.1
 repository: https://github.com/gsmlg-app/secrethub_agent
 
 environment:
