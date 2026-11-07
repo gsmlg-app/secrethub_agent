@@ -1,32 +1,32 @@
-# Codex 开发指引
+# Codex Development Guidelines
 
-本项目是独立 Flutter 插件，面向 iOS 和 Android。设计规格见 [Dart / Flutter 移动端 Agent 设计](https://github.com/gsmlg-app/secrethub_agent/blob/main/DESIGN.md)。以检出的设计规格和当前任务指令确定工作范围。
+This project is an independent Flutter plugin targeting iOS and Android. For design specifications, refer to [Dart / Flutter Mobile Agent Design](https://github.com/gsmlg-app/secrethub_agent/blob/main/DESIGN.md). Determine the scope of work based on the checked-out design specifications and current task instructions.
 
-当前仓库交付设计文档，SDK 尚未实现。收到开发任务后按其授权范围实施；文档任务保持文档范围，提交、发布和部署分别遵循任务指令。
+The current repository delivers the design documentation, initial Flutter plugin structure, and CI/CD automation. When receiving development tasks, implement strictly within their authorized scope; documentation tasks remain scoped to documentation, and committing, releasing, or deploying must follow task instructions.
 
-## 项目边界
+## Project Boundaries
 
-- 交付 Dart API、Swift/Kotlin 原生适配、示例 App、协议向量、测试与使用文档。
-- Core 是外部服务；本项目不包含服务端源码、数据库迁移或管理界面。
-- 缺少 Core 必需能力时报告不兼容并列明集成依赖，不使用弱化身份或授权的替代协议。
-- 不引入用户账户或管理登录系统。
+- Deliver Dart API, Swift/Kotlin native adaptations, example app, protocol vectors, tests, and usage documentation.
+- Core is an external service; this project contains no server-side source code, database migrations, or admin UI.
+- When required Core capabilities are missing, report version incompatibility and list integration dependencies; do not adopt fallback protocols that weaken identity or authorization.
+- Do not introduce user accounts or admin login systems.
 
-## 安全约束
+## Security Constraints
 
-- 安装身份和 TLS 私钥由原生密钥设施生成并使用，必须不可导出；不通过 Dart 或临时 PEM 传递。
-- secret 明文越过原生边界前完成原生审计准入及交付检查；离线读取还须验证 grant、缓存、时钟和失效状态。
-- 已知 Core 拒绝、吊销、TLS 信任错误和同步屏障优先于离线缓存。
-- 离线冷启动依赖可信 OS 时间；不宣称能抵抗整机时间与存储联合回滚。
-- secret、token、私钥、缓存密钥和 secret-derived digest 不进入日志、异常文本或示例输出。
+- Installation identity and TLS private keys must be generated and held exclusively by native platform keystores and must remain non-exportable; never pass them through Dart or temporary PEM files.
+- Secret plaintext must undergo native audit admission and delivery checks before crossing native platform boundaries; offline reads must additionally verify grant validity, cache integrity, trusted clock, and invalidation state.
+- Known Core rejections, revocations, TLS trust errors, and synchronization barriers take precedence over offline cache.
+- Offline cold starts rely on a trusted OS clock; do not claim resistance against coordinated whole-device time and storage rollbacks.
+- Secrets, tokens, private keys, cache encryption keys, and secret-derived digests must never enter logs, exception text, or example outputs.
 
-## 工作与验证
+## Workflow & Verification
 
-- 开工前检查现有改动，保留他人的工作。优先使用现有依赖和直接的数据流，避免无关抽象。
-- 使用当前分支；仅在用户明确要求时创建分支或 Git worktree。
-- 先验证两端原生密钥、CSR、Core 签发和 mTLS WSS 的完整链路，再展开其余实现。
-- 以设计中的 30 条验收标准组织证据。分别报告通过、失败、未执行和环境阻塞；模拟器或编译成功不能代替真机结果。
-- 未经请求不发布到 pub.dev，不部署生产服务；不修改外部 Core 项目。
+- Review existing changes before starting work; preserve the work of others. Prioritize existing dependencies and direct data flows over unnecessary abstractions.
+- Work on the current branch; create branches or Git worktrees only when explicitly requested by the user.
+- Verify the end-to-end vertical path (native keys → CSR → Core issuance → native mTLS WSS) on physical devices before expanding remaining implementations.
+- Organize evidence against the 30 acceptance criteria defined in `DESIGN.md`. Report status as Passed, Failed, Not Executed, or Environment Blocked; simulator or build success cannot substitute for physical device results.
+- Do not deploy production services or modify the external Core project unless authorized.
 
-## Agent skills
+## Agent Skills
 
-- [verification-before-completion](https://github.com/obra/superpowers/blob/main/skills/verification-before-completion/SKILL.md)：用实际命令结果支持完成结论，保留测试与设备验证的边界。
+- [verification-before-completion](https://github.com/obra/superpowers/blob/main/skills/verification-before-completion/SKILL.md): Back completion claims with actual command outputs; preserve the distinction between simulated/mock testing and physical device verification.
