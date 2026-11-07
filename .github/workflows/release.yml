@@ -106,7 +106,7 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           mkdir -p dist/release
-          git archive --format=tar.gz --prefix="${PACKAGE}-${VERSION}/" -o "dist/release/${PACKAGE}-source-${VERSION}.tar.gz" HEAD
+          dart pub publish --to-archive="dist/release/${PACKAGE}-source-${VERSION}.tar.gz"
           (
             cd dist/release
             sha256sum * > SHA256SUMS
